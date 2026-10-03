@@ -26,7 +26,7 @@ RACE_NAME = "静岡マラソンエントリー"   # メール件名用
 
 # 「ゆずれ～る実施大会一覧」で狙いの大会が載っているページのURL（複数可・上から探す）
 LIST_URLS = [
-    "https://runnet.jp/entry/runtes/user/pc/RaceSearchZZSDetailAction.do",
+    "https://runnet.jp/parts/2027/396339/entry.html#id01_m019",
 ]
 
 RENOTIFY_MIN = 60           # 空きが続いている間の再通知間隔

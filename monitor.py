@@ -94,20 +94,38 @@ def check_status():
         return "AVAILABLE", f"空きあり表示（{img}）"
     raise RuntimeError("一覧ページに対象の大会が見つからない（ページ送りでずれた？LIST_URLSを確認）")
 
-
 def send_mail(subject, body):
-    pw = os.environ.get("GMAIL_APP_PASSWORD")
-    frm = os.environ.get("MAIL_FROM")
-    to = os.environ.get("MAIL_TO") or frm
+    pw = os.environ.get("GMAIL_APP_PASSWORD", "").replace(" ", "").strip()
+    frm = os.environ.get("MAIL_FROM", "").strip()
+    to = os.environ.get("MAIL_TO", "").strip() or frm
     if not (pw and frm):
         sys.exit("Secrets の GMAIL_APP_PASSWORD / MAIL_FROM が未設定です")
+    rcpts = [a.strip() for a in to.split(",") if a.strip()]
     msg = MIMEText(body, "plain", "utf-8")
     msg["Subject"] = Header(subject, "utf-8")
     msg["From"] = frm
-    msg["To"] = to
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as s:
-        s.login(frm, pw)
-        s.sendmail(frm, [a.strip() for a in to.split(",")], msg.as_string())
+    msg["To"] = ", ".join(rcpts)
+
+    last_err = None
+    for attempt in ("ssl465", "tls587"):
+        try:
+            if attempt == "ssl465":
+                s = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30)
+            else:
+                s = smtplib.SMTP("smtp.gmail.com", 587, timeout=30)
+                s.ehlo()
+                s.starttls()
+                s.ehlo()
+            with s:
+                s.login(frm, pw)
+                s.sendmail(frm, rcpts, msg.as_string())
+            return
+        except smtplib.SMTPAuthenticationError:
+            raise  # パスワード誤りは再試行しても無駄
+        except Exception as e:
+            print(f"送信失敗({attempt}): {e}")
+            last_err = e
+    raise last_err
 
 
 def main():

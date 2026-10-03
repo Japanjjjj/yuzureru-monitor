@@ -1,0 +1,50 @@
+name: yuzureru-monitor
+
+on:
+  schedule:
+    # cronはUTC表記（JST = UTC+9）
+    - cron: "*/5 0-14,21-23 * * *"   # JST 6:00〜23:59 は5分ごと
+    - cron: "*/15 15-20 * * *"       # JST 0:00〜5:59 は15分ごと
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "monitor=通常 / once=判定のみ / test-mail=メール確認"
+        type: choice
+        options: [monitor, once, test-mail]
+        default: monitor
+
+permissions:
+  contents: write   # state.json をコミットするため
+
+concurrency:
+  group: yuzureru-monitor
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check yuzureru
+        env:
+          MODE: ${{ github.event.inputs.mode || 'monitor' }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+          MAIL_TO: ${{ secrets.MAIL_TO }}
+        run: python monitor.py
+
+      - name: Save state (changed only)
+        run: |
+          if [ -f state.json ] && [ -n "$(git status --porcelain state.json)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add state.json
+            git commit -m "update state"
+            git pull --rebase && git push
+          fi
